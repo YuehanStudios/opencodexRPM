@@ -9,12 +9,14 @@ function printUsage() {
   console.log(`opencodex (ocx) — Universal provider proxy for Codex
 
 Usage:
+  ocx init                    Interactive setup (provider + Codex config injection)
   ocx start [--port <port>]   Start the proxy server
   ocx stop                    Stop the running proxy server
   ocx status                  Check proxy server status
   ocx help                    Show this help message
 
 Examples:
+  ocx init                    Set up provider and inject into Codex
   ocx start                   Start on default port (10100)
   ocx start --port 8080       Start on custom port`);
 }
@@ -76,6 +78,11 @@ function handleStatus() {
 }
 
 switch (command) {
+  case "init": {
+    const { runInit } = await import("./init");
+    await runInit();
+    break;
+  }
   case "start":
     handleStart();
     break;
