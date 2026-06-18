@@ -1,0 +1,77 @@
+---
+title: opencodex
+description: 面向 OpenAI Codex 的通用 provider 代理 —— 在 Codex CLI、App 和 SDK 中使用任意 LLM。
+template: splash
+hero:
+  tagline: 在 OpenAI Codex 中使用任意 LLM —— Anthropic、Google、xAI、Kimi、Ollama Cloud,以及任意 OpenAI 兼容端点。一个代理,无需修补 Codex。
+  actions:
+    - text: 快速开始
+      link: /opencodex/zh-cn/getting-started/installation/
+      icon: right-arrow
+      variant: primary
+    - text: 工作原理
+      link: /opencodex/zh-cn/getting-started/how-it-works/
+      icon: open-book
+    - text: GitHub
+      link: https://github.com/lidge-jun/opencodex
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+**opencodex**(`ocx`)是一个本地代理,位于 [OpenAI Codex](https://openai.com/codex)
+与任意 LLM provider 之间。Codex 只会说 **Responses API**(`/v1/responses`);opencodex 会将
+该协议双向翻译 —— 包括 streaming、工具调用、推理和图像 —— 转换为你的 provider 所需的
+任意线路格式,然后再把响应翻译回来。
+
+```
+Codex CLI / App / SDK ──/v1/responses──▶ opencodex ──▶ Any provider
+                                              │
+                  Anthropic · Google · xAI · Kimi · Ollama Cloud · Groq
+                  OpenRouter · Azure · DeepSeek · GLM · …and OpenAI itself
+```
+
+<CardGrid stagger>
+  <Card title="任意 provider" icon="puzzle">
+    五个 adapter 覆盖 Anthropic Messages、Google Gemini、Azure、OpenAI Responses 直通,
+    以及**所有 OpenAI 兼容的 Chat Completions** 端点 —— 此外还有一个包含 18 个 provider 的 API key 目录。
+  </Card>
+  <Card title="OAuth 或 API key" icon="approve-check">
+    使用你的 xAI、Anthropic 或 Kimi 账号登录(OAuth,自动刷新)、转发你的 ChatGPT
+    登录凭据,或粘贴一个 API key。Key 可以是 `${ENV_VARS}`。
+  </Card>
+  <Card title="无缝接入 Codex" icon="rocket">
+    `ocx init` 会向 `~/.codex/config.toml` 注入一个 provider,并将已路由的模型合并进 Codex 的
+    目录与 subagent 选择器。`ocx stop` 可干净地恢复原生 Codex。
+  </Card>
+  <Card title="Sidecar" icon="magnifier">
+    通过你的 ChatGPT 登录凭据,借助 `gpt-5.4-mini` sidecar 路由相关能力,
+    让非 OpenAI 模型也拥有真正的**网络搜索**和**图像理解**。
+  </Card>
+</CardGrid>
+
+## 快速开始
+
+```bash
+# Install
+bun install -g opencodex      # or: npm install -g opencodex
+
+# Interactive setup (writes config + injects into Codex)
+ocx init
+
+# Start the proxy
+ocx start
+
+# Use Codex normally — it now routes through opencodex
+codex "Write a hello world in Rust"
+```
+
+## 下一步去哪里
+
+<CardGrid>
+  <LinkCard title="安装" href="/opencodex/zh-cn/getting-started/installation/" description="安装 ocx、前置条件以及验证。" />
+  <LinkCard title="工作原理" href="/opencodex/zh-cn/getting-started/how-it-works/" description="完整的请求生命周期:解析 → 路由 → adapter → 桥接 → SSE。" />
+  <LinkCard title="Provider" href="/opencodex/zh-cn/guides/providers/" description="OAuth、API key 目录、转发/直通,以及完整的 provider 列表。" />
+  <LinkCard title="CLI 参考" href="/opencodex/zh-cn/reference/cli/" description="每一个 ocx 命令与参数。" />
+</CardGrid>
