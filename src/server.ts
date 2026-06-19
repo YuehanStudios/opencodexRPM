@@ -403,8 +403,8 @@ async function handleManagementAPI(req: Request, url: URL, config: OcxConfig): P
       if (authUrl) {
         // Open the browser server-side (the proxy runs on the user's machine) — the GUI's
         // window.open is popup-blocked because it runs after an await, not a direct click.
-        const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? 'start ""' : "xdg-open";
-        (await import("node:child_process")).exec(`${cmd} "${authUrl}"`, () => {});
+        const { openUrl } = await import("./open-url");
+        openUrl(authUrl);
       }
       return jsonResponse({ url: authUrl, instructions });
     } catch (err) {

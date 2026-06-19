@@ -159,7 +159,8 @@ switch (command) {
       await new Promise(r => setTimeout(r, 1000));
     }
     console.log(`Opening ${guiUrl}`);
-    (await import("node:child_process")).exec(`open ${guiUrl}`);
+    const { openUrl } = await import("./open-url");
+    openUrl(guiUrl);
     break;
   }
   case "service":

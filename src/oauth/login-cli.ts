@@ -1,14 +1,8 @@
 import * as readline from "node:readline";
-import { exec } from "node:child_process";
+import { openUrl } from "../open-url";
 import { loadConfig, readPid, saveConfig } from "../config";
 import { OAUTH_PROVIDERS, runLogin } from "./index";
 import { KEY_LOGIN_PROVIDERS, isKeyLoginProvider, validateApiKey } from "./key-providers";
-
-function openBrowser(url: string): void {
-  const cmd =
-    process.platform === "darwin" ? "open" : process.platform === "win32" ? 'start ""' : "xdg-open";
-  exec(`${cmd} "${url}"`, () => {});
-}
 
 /** Push the new provider into a running proxy's live config so it routes without a restart. */
 async function notifyRunningProxy(name: string, provider: unknown): Promise<void> {
@@ -44,7 +38,7 @@ async function handleOAuthLogin(name: string): Promise<void> {
       onAuth: ({ url, instructions }) => {
         console.log(`\n🔐 Opening browser for ${name} login...\n${url}\n`);
         if (instructions) console.log(instructions);
-        openBrowser(url);
+        openUrl(url);
       },
       onProgress: (m) => console.log(`   ${m}`),
       onManualCodeInput: () =>
@@ -60,7 +54,7 @@ async function handleOAuthLogin(name: string): Promise<void> {
 async function handleKeyLogin(name: string): Promise<void> {
   const def = KEY_LOGIN_PROVIDERS[name];
   console.log(`\n🔑 ${def.label} — opening ${def.dashboardUrl} so you can create/copy an API key...`);
-  openBrowser(def.dashboardUrl);
+  openUrl(def.dashboardUrl);
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const key = (await new Promise<string>((res) => rl.question(`Paste your ${def.label} API key: `, res))).trim();
   rl.close();
