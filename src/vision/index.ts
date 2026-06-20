@@ -107,6 +107,7 @@ export async function describeImagesInPlace(
   forwardProvider: OcxProviderConfig,
   incomingHeaders: Headers,
   settings: VisionSettings,
+  abortSignal?: AbortSignal,
 ): Promise<void> {
   // 1. Gather every image part across messages, each with its own message's text as context.
   const jobs: ImageJob[] = [];
@@ -129,7 +130,7 @@ export async function describeImagesInPlace(
 
   // 2. Describe all images with bounded concurrency (order preserved).
   const outcomes = await runBounded(jobs, VISION_CONCURRENCY, j =>
-    describeImage(j.imageUrl, j.detail, j.contextText, forwardProvider, incomingHeaders, settings));
+    describeImage(j.imageUrl, j.detail, j.contextText, forwardProvider, incomingHeaders, settings, abortSignal));
 
   // 3. Rebuild each message, replacing image parts with their descriptions in order.
   let oi = 0;

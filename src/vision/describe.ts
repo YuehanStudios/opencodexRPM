@@ -1,5 +1,6 @@
 import type { OcxProviderConfig } from "../types";
 import { FORWARD_HEADERS } from "../adapters/openai-responses";
+import { signalWithTimeout } from "../abort";
 import { parseSidecarSSE } from "../web-search/parse";
 
 export interface VisionSettings {
@@ -48,6 +49,7 @@ export async function describeImage(
   forwardProvider: OcxProviderConfig,
   incomingHeaders: Headers,
   settings: VisionSettings,
+  abortSignal?: AbortSignal,
 ): Promise<DescribeOutcome> {
   const invalid = validateImageUrl(imageUrl);
   if (invalid) return { text: "", error: invalid };
@@ -76,12 +78,13 @@ export async function describeImage(
     store: false,
     stream: true,
   };
+  const linkedSignal = signalWithTimeout(settings.timeoutMs, abortSignal);
   try {
     const res = await fetch(`${forwardProvider.baseUrl}/responses`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(settings.timeoutMs),
+      signal: linkedSignal.signal,
     });
     if (!res.ok) {
       const t = await res.text().catch(() => "");
@@ -94,5 +97,7 @@ export async function describeImage(
     return { text: parsed.text };
   } catch (e) {
     return { text: "", error: e instanceof Error ? e.message : String(e) };
+  } finally {
+    linkedSignal.cleanup();
   }
 }

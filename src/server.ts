@@ -150,7 +150,7 @@ async function handleResponses(
   // with text BEFORE the main call, so the text-only model can reason about it.
   const visionPlan = planVisionSidecar(config, route.provider, route.modelId, parsed, req.headers);
   if (visionPlan) {
-    await describeImagesInPlace(parsed, visionPlan.forwardProvider, req.headers, visionPlan.settings);
+    await describeImagesInPlace(parsed, visionPlan.forwardProvider, req.headers, visionPlan.settings, options.abortSignal);
   }
 
   const adapter = resolveAdapter(route.provider);
@@ -192,6 +192,7 @@ async function handleResponses(
       incomingHeaders: req.headers,
       settings: wsPlan.settings,
       maxSearches: wsPlan.maxSearches,
+      abortSignal: options.abortSignal,
     });
   }
 

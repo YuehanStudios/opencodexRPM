@@ -95,6 +95,7 @@ export interface WebSearchLoopDeps {
   incomingHeaders: Headers;
   settings: SidecarSettings;
   maxSearches: number;
+  abortSignal?: AbortSignal;
 }
 
 /**
@@ -104,7 +105,7 @@ export interface WebSearchLoopDeps {
  * streamed Responses SSE. web_search calls are executed internally and never relayed to Codex.
  */
 export async function runWithWebSearch(deps: WebSearchLoopDeps): Promise<Response> {
-  const { parsed, adapter, incomingHeaders, forwardProvider, hostedTool, settings, maxSearches } = deps;
+  const { parsed, adapter, incomingHeaders, forwardProvider, hostedTool, settings, maxSearches, abortSignal } = deps;
   if (!adapter.parseResponse) return jsonError(500, "web-search sidecar requires a non-streaming adapter");
 
   const messages: OcxMessage[] = [...parsed.context.messages];
@@ -159,7 +160,7 @@ export async function runWithWebSearch(deps: WebSearchLoopDeps): Promise<Respons
         outcome = { text: "", sources: [], error: "the model called web_search with an empty query" };
         searchesExecuted++;
       } else {
-        outcome = await runWebSearch(call.query, hostedTool, forwardProvider, incomingHeaders, settings);
+        outcome = await runWebSearch(call.query, hostedTool, forwardProvider, incomingHeaders, settings, abortSignal);
         searchesExecuted++;
         if (outcome.error) failedQueries.add(normalizeQuery(call.query));
       }
