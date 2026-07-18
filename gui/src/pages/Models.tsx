@@ -84,6 +84,8 @@ export default function Models({ apiBase }: { apiBase: string }) {
   const [shadowCallSaving, setShadowCallSaving] = useState(false);
   const [rateLimit, setRateLimit] = useState<RateLimitConfig | null>(null);
   const [rateLimitSaving, setRateLimitSaving] = useState(false);
+  const [showRpmCustom, setShowRpmCustom] = useState(false);
+  const [rpmValue, setRpmValue] = useState("");
 
   const loadRateLimit = useCallback(async () => {
     try {
@@ -129,7 +131,8 @@ export default function Models({ apiBase }: { apiBase: string }) {
       void loadShadowCall();
       void loadRateLimit();
       setModels(data);
-      setDisabled(new Set(data.filter(m => m.disabled).map(m => m.namespaced)));\n      const value = typeof capsData.value === "number" && Number.isFinite(capsData.value) && capsData.value > 0
+      setDisabled(new Set(data.filter(m => m.disabled).map(m => m.namespaced)));
+      const value = typeof capsData.value === "number" && Number.isFinite(capsData.value) && capsData.value > 0
         ? capsData.value
         : (typeof capsData.cap === "number" && Number.isFinite(capsData.cap) && capsData.cap > 0 ? capsData.cap : undefined);
       if (value !== undefined) setContextCapValue(value);
@@ -306,6 +309,28 @@ export default function Models({ apiBase }: { apiBase: string }) {
     }
   };
 
+  const saveRateLimit = async (patch: Partial<RateLimitConfig>) => {
+    if (!rateLimit || rateLimitSaving) return;
+    setRateLimitSaving(true);
+    setRateLimit({ ...rateLimit, ...patch });
+    try {
+      await fetch(`${apiBase}/api/rate-limit`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+    } finally {
+      setRateLimitSaving(false);
+    }
+  };
+
+  const applyRpmValue = () => {
+    const value = Number(rpmValue.replace(/[_,\s]/g, ""));
+    if (!Number.isFinite(value) || value < 1) { setOk(false); setStatus(t("models.rpmInvalid")); return; }
+    setShowRpmCustom(false);
+    void saveRateLimit({ maxRequests: Math.floor(value) });
+  };
+
   const setMultiAgentMode = async (mode: "v1" | "default" | "v2") => {
     if (!v2 || v2BusyRef.current) return;
     if (v2.multiAgentMode === mode) return;
@@ -400,6 +425,33 @@ export default function Models({ apiBase }: { apiBase: string }) {
         <code className="text-caption" style={{ opacity: 0.6 }}>⚠ 5.4-mini →</code>
         <Switch on={shadowCall?.enabled ?? false} onClick={() => void saveShadowCall({ enabled: !shadowCall?.enabled })} disabled={!shadowCall || shadowCallSaving} label={t("models.shadowCallIntercept")} />
         <Select value={shadowCall?.model ?? ""} options={[{ value: "", label: "\u2014" }, ...models.filter(m => !disabled.has(m.id) && !disabled.has(m.namespaced)).map(m => ({ value: m.namespaced, label: m.namespaced }))]} onChange={v => { setShadowCall(c => c ? { ...c, model: v } : c); void saveShadowCall({ model: v }); }} disabled={!shadowCall || shadowCallSaving || !shadowCall.enabled} label={t("models.shadowCallIntercept")} />
+      </div>
+
+      <div className="row muted text-control" style={{ gap: 6, marginBottom: 8, alignItems: "center" }}>
+        <span>{t("models.rpmLabel")}</span>
+        <Switch on={rateLimit?.enabled ?? false} onClick={() => void saveRateLimit({ enabled: !(rateLimit?.enabled ?? false) })} disabled={!rateLimit || rateLimitSaving} label={t("models.rpmLabel")} />
+        <span className="muted mono text-label">{t("models.rpmValue", { value: rateLimit?.maxRequests ?? 20 })}</span>
+        {!showRpmCustom && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowRpmCustom(true); setRpmValue(String(rateLimit?.maxRequests ?? "")); }} disabled={!rateLimit?.enabled || rateLimitSaving}>
+            {t("models.edit")}
+          </button>
+        )}
+        {showRpmCustom && (
+          <>
+            <input
+              className="input"
+              style={{ width: 100 }}
+              inputMode="numeric"
+              value={rpmValue}
+              onChange={e => setRpmValue(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") applyRpmValue(); }}
+              disabled={!rateLimit?.enabled || rateLimitSaving}
+            />
+            <button type="button" className="btn btn-sm" disabled={!rateLimit?.enabled || rateLimitSaving} onClick={applyRpmValue}>
+              {t("models.apply")}
+            </button>
+          </>
+        )}
       </div>
 
       {v2 && (
