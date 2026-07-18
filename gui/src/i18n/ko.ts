@@ -243,6 +243,16 @@ export const ko: Record<TKey, string> = {
   "models.rpmInvalid": "RPM 은 양수여야 합니다",
   "models.edit": "편집",
   "models.apply": "적용",
+  "models.rpmSummary": "{rpm} 요청 / {window}초",
+  "models.rpmCollapse": "접기",
+  "models.rpmField": "요청 수",
+  "models.rpmFieldHint": "구간 내 최대 요청 수입니다.",
+  "models.rpmWindow": "구간 (초)",
+  "models.rpmWindowHint": "구간 길이(초). 최소 1초.",
+  "models.rpmWindowInvalid": "구간은 최소 1초여야 합니다",
+  "models.rpmEven": "균등 분배",
+  "models.rpmEvenHint": "초기 폭주를 허용하지 않고 구간 전체에 요청을 균등하게 분배합니다.",
+  "models.rpmRestartNote": "변경 사항은 적용을 위해 프록시를 다시 시작합니다.",
 
   // subagents
   "sub.subtitle": "Codex의 {cmd} 는 우선순위 상위 5개 모델만 오버라이드로 노출합니다. 여기서 최대 5개를 선택하면 — 네이티브 gpt 또는 라우팅된 모델 — opencodex가 카탈로그 우선순위를 설정해 정확히 이들이 앞에 옵니다. 다른 모델도 정확한 이름으로 호출할 수 있으며, 이 설정은 표시 항목만 제어합니다.",

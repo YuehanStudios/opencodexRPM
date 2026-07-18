@@ -243,6 +243,16 @@ export const zh: Record<TKey, string> = {
   "models.rpmInvalid": "RPM 必须是正数",
   "models.edit": "编辑",
   "models.apply": "应用",
+  "models.rpmSummary": "{rpm} 请求 / {window}秒",
+  "models.rpmCollapse": "收起",
+  "models.rpmField": "请求数",
+  "models.rpmFieldHint": "窗口内允许的最大请求数。",
+  "models.rpmWindow": "窗口（秒）",
+  "models.rpmWindowHint": "窗口长度（秒），最少 1 秒。",
+  "models.rpmWindowInvalid": "窗口至少为 1 秒",
+  "models.rpmEven": "均匀分布",
+  "models.rpmEvenHint": "在窗口内均匀分布请求，而非允许开始时集中爆发。",
+  "models.rpmRestartNote": "更改将重启代理以生效。",
 
   // subagents
   "sub.subtitle": "Codex 的 {cmd} 仅将优先级最高的前 5 个模型作为覆盖项公开。在此最多选择 5 个 — 原生 gpt 或已路由模型 — opencodex 会设置它们的目录优先级，使其正好排在前面。其他模型仍可按确切名称调用；此设置仅控制显示项。",

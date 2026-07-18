@@ -248,6 +248,16 @@ export const en = {
   "models.rpmInvalid": "RPM must be a positive number",
   "models.edit": "Edit",
   "models.apply": "Apply",
+  "models.rpmSummary": "{rpm} req / {window}s",
+  "models.rpmCollapse": "Collapse",
+  "models.rpmField": "Requests",
+  "models.rpmFieldHint": "Max requests allowed in the window.",
+  "models.rpmWindow": "Window (s)",
+  "models.rpmWindowHint": "Window length in seconds (min 1).",
+  "models.rpmWindowInvalid": "Window must be at least 1 second",
+  "models.rpmEven": "Even distribution",
+  "models.rpmEvenHint": "Spread requests evenly across the window instead of allowing an initial burst.",
+  "models.rpmRestartNote": "Changes restart the proxy to take effect.",
 
   // subagents
   "sub.subtitle": "Codex's {cmd} advertises only the first 5 models (by priority) as overrides. Pick up to 5 here — native gpt or routed — and opencodex sets their catalog priority so exactly these lead. Any other model is still callable by its exact name; this only controls what's shown.",

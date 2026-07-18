@@ -84,13 +84,19 @@ export default function Models({ apiBase }: { apiBase: string }) {
   const [shadowCallSaving, setShadowCallSaving] = useState(false);
   const [rateLimit, setRateLimit] = useState<RateLimitConfig | null>(null);
   const [rateLimitSaving, setRateLimitSaving] = useState(false);
-  const [showRpmCustom, setShowRpmCustom] = useState(false);
+  const [showRpmPanel, setShowRpmPanel] = useState(false);
   const [rpmValue, setRpmValue] = useState("");
+  const [windowSec, setWindowSec] = useState("");
+  const [evenDist, setEvenDist] = useState(true);
 
   const loadRateLimit = useCallback(async () => {
     try {
       const r = await fetch(`${apiBase}/api/rate-limit`);
-      if (r.ok) setRateLimit(await r.json() as RateLimitConfig);
+      if (r.ok) {
+        const rl = await r.json() as RateLimitConfig;
+        setRateLimit(rl);
+        setEvenDist(rl.evenDistribution);
+      }
     } catch { /* old server / network: keep the section disabled */ }
   }, [apiBase]);
 
@@ -327,8 +333,14 @@ export default function Models({ apiBase }: { apiBase: string }) {
   const applyRpmValue = () => {
     const value = Number(rpmValue.replace(/[_,\s]/g, ""));
     if (!Number.isFinite(value) || value < 1) { setOk(false); setStatus(t("models.rpmInvalid")); return; }
-    setShowRpmCustom(false);
+    setShowRpmPanel(false);
     void saveRateLimit({ maxRequests: Math.floor(value) });
+  };
+
+  const applyWindowSec = () => {
+    const value = Number(windowSec.replace(/[_,\s]/g, ""));
+    if (!Number.isFinite(value) || value < 1) { setOk(false); setStatus(t("models.rpmWindowInvalid")); return; }
+    void saveRateLimit({ windowMs: Math.floor(value) * 1000 });
   };
 
   const setMultiAgentMode = async (mode: "v1" | "default" | "v2") => {
@@ -427,32 +439,62 @@ export default function Models({ apiBase }: { apiBase: string }) {
         <Select value={shadowCall?.model ?? ""} options={[{ value: "", label: "\u2014" }, ...models.filter(m => !disabled.has(m.id) && !disabled.has(m.namespaced)).map(m => ({ value: m.namespaced, label: m.namespaced }))]} onChange={v => { setShadowCall(c => c ? { ...c, model: v } : c); void saveShadowCall({ model: v }); }} disabled={!shadowCall || shadowCallSaving || !shadowCall.enabled} label={t("models.shadowCallIntercept")} />
       </div>
 
-      <div className="row muted text-control" style={{ gap: 6, marginBottom: 8, alignItems: "center" }}>
-        <span>{t("models.rpmLabel")}</span>
+      <div className="row text-control" style={{ gap: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <span className="muted">{t("models.rpmLabel")}</span>
         <Switch on={rateLimit?.enabled ?? false} onClick={() => void saveRateLimit({ enabled: !(rateLimit?.enabled ?? false) })} disabled={!rateLimit || rateLimitSaving} label={t("models.rpmLabel")} />
-        <span className="muted mono text-label">{t("models.rpmValue", { value: rateLimit?.maxRequests ?? 20 })}</span>
-        {!showRpmCustom && (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowRpmCustom(true); setRpmValue(String(rateLimit?.maxRequests ?? "")); }} disabled={!rateLimit?.enabled || rateLimitSaving}>
-            {t("models.edit")}
-          </button>
-        )}
-        {showRpmCustom && (
-          <>
+        <span className="muted mono text-label">
+          {t("models.rpmSummary", { rpm: rateLimit?.maxRequests ?? 20, window: Math.round((rateLimit?.windowMs ?? 60000) / 1000) })}
+        </span>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowRpmPanel(s => !s); setRpmValue(String(rateLimit?.maxRequests ?? "")); setWindowSec(String(Math.round((rateLimit?.windowMs ?? 60000) / 1000))); setEvenDist(rateLimit?.evenDistribution ?? true); }} disabled={!rateLimit?.enabled || rateLimitSaving}>
+          {showRpmPanel ? t("models.rpmCollapse") : t("models.edit")}
+        </button>
+      </div>
+      {showRpmPanel && rateLimit?.enabled && (
+        <div className="surface-soft" style={{ padding: "12px 14px", marginBottom: 10, borderRadius: "var(--radius, 10px)", gap: 10, display: "flex", flexDirection: "column" }}>
+          <div className="row text-control" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label htmlFor="ocx-rpm" className="muted text-label" style={{ minWidth: 96 }}>{t("models.rpmField")}</label>
             <input
+              id="ocx-rpm"
               className="input"
-              style={{ width: 100 }}
+              style={{ width: 120 }}
               inputMode="numeric"
               value={rpmValue}
               onChange={e => setRpmValue(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") applyRpmValue(); }}
-              disabled={!rateLimit?.enabled || rateLimitSaving}
+              disabled={rateLimitSaving}
+              placeholder={String(rateLimit?.maxRequests ?? 20)}
             />
-            <button type="button" className="btn btn-sm" disabled={!rateLimit?.enabled || rateLimitSaving} onClick={applyRpmValue}>
+            <button type="button" className="btn btn-sm btn-primary" disabled={rateLimitSaving} onClick={applyRpmValue}>
               {t("models.apply")}
             </button>
-          </>
-        )}
-      </div>
+            <span className="muted text-caption">{t("models.rpmFieldHint")}</span>
+          </div>
+          <div className="row text-control" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label htmlFor="ocx-rpm-window" className="muted text-label" style={{ minWidth: 96 }}>{t("models.rpmWindow")}</label>
+            <input
+              id="ocx-rpm-window"
+              className="input"
+              style={{ width: 120 }}
+              inputMode="numeric"
+              value={windowSec}
+              onChange={e => setWindowSec(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") applyWindowSec(); }}
+              disabled={rateLimitSaving}
+              placeholder={String(Math.round((rateLimit?.windowMs ?? 60000) / 1000))}
+            />
+            <button type="button" className="btn btn-sm btn-primary" disabled={rateLimitSaving} onClick={applyWindowSec}>
+              {t("models.apply")}
+            </button>
+            <span className="muted text-caption">{t("models.rpmWindowHint")}</span>
+          </div>
+          <div className="row text-control" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span className="muted text-label" style={{ minWidth: 96 }}>{t("models.rpmEven")}</span>
+            <Switch on={evenDist} onClick={() => { const next = !evenDist; setEvenDist(next); void saveRateLimit({ evenDistribution: next }); }} disabled={rateLimitSaving} label={t("models.rpmEven")} />
+            <span className="muted text-caption">{t("models.rpmEvenHint")}</span>
+          </div>
+          <p className="muted text-caption" style={{ margin: "2px 0 0" }}>{t("models.rpmRestartNote")}</p>
+        </div>
+      )}
 
       {v2 && (
         <div className="row" style={{ gap: 8, marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
