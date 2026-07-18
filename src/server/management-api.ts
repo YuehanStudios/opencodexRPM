@@ -558,8 +558,6 @@ export async function handleManagementAPI(req: Request, url: URL, config: OcxCon
     return respond();
   }
 
-  // Enable/disable models: which routed models Codex sees. PUT hides them from the catalog +
-  // /v1/models and invalidates Codex's 5-min models cache so it applies on the next turn.
   if (url.pathname === "/api/disabled-models" && req.method === "PUT") {
     let body: { models?: unknown };
     try { body = await req.json(); } catch { return jsonResponse({ error: "invalid JSON body" }, 400); }
@@ -569,6 +567,69 @@ export async function handleManagementAPI(req: Request, url: URL, config: OcxCon
     save(config);
     await refreshCodexCatalogBestEffort();
     return jsonResponse({ ok: true, disabled });
+  }
+
+  // Rate limit configuration endpoint. GET returns current settings; PUT updates them.
+  if (url.pathname === "/api/rate-limit" && req.method === "GET") {
+    return jsonResponse({
+      enabled: config.rateLimit?.enabled ?? false,
+      maxRequests: config.rateLimit?.maxRequests ?? 20,
+      windowMs: config.rateLimit?.windowMs ?? 60000,
+      evenDistribution: config.rateLimit?.evenDistribution ?? true,
+    });
+  }
+
+  if (url.pathname === "/api/rate-limit" && req.method === "PUT") {
+    let body: { enabled?: unknown; maxRequests?: unknown; windowMs?: unknown; evenDistribution?: unknown };
+    try { body = await req.json(); } catch { return jsonResponse({ error: "invalid JSON body" }, 400); }
+    const { saveConfig: save } = await import("../config");
+    
+    // Validate and update fields
+    if (body.enabled !== undefined) {
+      if (typeof body.enabled !== "boolean") {
+        return jsonResponse({ error: "enabled must be a boolean" }, 400);
+      }
+      if (!config.rateLimit) config.rateLimit = {};
+      config.rateLimit.enabled = body.enabled;
+    }
+    if (body.maxRequests !== undefined) {
+      if (typeof body.maxRequests !== "number" || !Number.isFinite(body.maxRequests) || body.maxRequests < 1) {
+        return jsonResponse({ error: "maxRequests must be a positive number" }, 400);
+      }
+      if (!config.rateLimit) config.rateLimit = {};
+      config.rateLimit.maxRequests = Math.floor(body.maxRequests);
+    }
+    if (body.windowMs !== undefined) {
+      if (typeof body.windowMs !== "number" || !Number.isFinite(body.windowMs) || body.windowMs < 1000) {
+        return jsonResponse({ error: "windowMs must be at least 1000 (1 second)" }, 400);
+      }
+      if (!config.rateLimit) config.rateLimit = {};
+      config.rateLimit.windowMs = Math.floor(body.windowMs);
+    }
+    if (body.evenDistribution !== undefined) {
+      if (typeof body.evenDistribution !== "boolean") {
+        return jsonResponse({ error: "evenDistribution must be a boolean" }, 400);
+      }
+      if (!config.rateLimit) config.rateLimit = {};
+      config.rateLimit.evenDistribution = body.evenDistribution;
+    }
+    
+    save(config);
+    
+    // Restart the server to apply changes
+    setTimeout(async () => {
+      await drainAndShutdown(undefined, config.shutdownTimeoutMs ?? 5000);
+      process.exit(0);
+    }, 200);
+    
+    return jsonResponse({ 
+      ok: true, 
+      enabled: config.rateLimit?.enabled ?? false,
+      maxRequests: config.rateLimit?.maxRequests ?? 20,
+      windowMs: config.rateLimit?.windowMs ?? 60000,
+      evenDistribution: config.rateLimit?.evenDistribution ?? true,
+      message: "Rate limit updated — proxy will restart to apply changes",
+    });
   }
 
   // multi_agent_v2 surface toggle. GET reports the flag + the agents.max_threads
