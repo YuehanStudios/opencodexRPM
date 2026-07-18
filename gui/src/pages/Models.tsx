@@ -33,6 +33,13 @@ interface ShadowCallData {
   model: string;
 }
 
+interface RateLimitConfig {
+  enabled: boolean;
+  maxRequests: number;
+  windowMs: number;
+  evenDistribution: boolean;
+}
+
 const CAP_OPTIONS = Array.from({ length: 18 }, (_, i) => 100_000 + i * 50_000); // 100k … 950k
 const CUSTOM_OPTION = "custom";
 const THREAD_OPTIONS = [4, 8, 16, 32, 64, 128, 256, 500, 1000];
@@ -75,6 +82,15 @@ export default function Models({ apiBase }: { apiBase: string }) {
   const [v2HelpOpen, setV2HelpOpen] = useState(false);
   const [shadowCall, setShadowCall] = useState<ShadowCallData | null>(null);
   const [shadowCallSaving, setShadowCallSaving] = useState(false);
+  const [rateLimit, setRateLimit] = useState<RateLimitConfig | null>(null);
+  const [rateLimitSaving, setRateLimitSaving] = useState(false);
+
+  const loadRateLimit = useCallback(async () => {
+    try {
+      const r = await fetch(`${apiBase}/api/rate-limit`);
+      if (r.ok) setRateLimit(await r.json() as RateLimitConfig);
+    } catch { /* old server / network: keep the section disabled */ }
+  }, [apiBase]);
 
   const loadShadowCall = useCallback(async () => {
     try {
@@ -111,9 +127,9 @@ export default function Models({ apiBase }: { apiBase: string }) {
       ]);
       void loadV2(); // best-effort, independent of the models fetch
       void loadShadowCall();
+      void loadRateLimit();
       setModels(data);
-      setDisabled(new Set(data.filter(m => m.disabled).map(m => m.namespaced)));
-      const value = typeof capsData.value === "number" && Number.isFinite(capsData.value) && capsData.value > 0
+      setDisabled(new Set(data.filter(m => m.disabled).map(m => m.namespaced)));\n      const value = typeof capsData.value === "number" && Number.isFinite(capsData.value) && capsData.value > 0
         ? capsData.value
         : (typeof capsData.cap === "number" && Number.isFinite(capsData.cap) && capsData.cap > 0 ? capsData.cap : undefined);
       if (value !== undefined) setContextCapValue(value);
@@ -123,7 +139,7 @@ export default function Models({ apiBase }: { apiBase: string }) {
     } finally {
       setLoading(false);
     }
-  }, [apiBase, loadShadowCall, loadV2, t]);
+  }, [apiBase, loadShadowCall, loadV2, loadRateLimit, t]);
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       void load();

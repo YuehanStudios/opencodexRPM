@@ -1,4 +1,4 @@
-```
+```gitignore
 # Dependencies
 node_modules/
 
@@ -12,51 +12,36 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.py.class
+.Python
+env/
 venv/
 .venv/
-.env
-.env.local
-.env.*
-
-# Compiled files
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.a
-*.out
+.ENV
+.python-version
 
 # Logs
 *.log
 
-# Temp files
-*.tmp
-*.swp
-*.swo
+# Environment variables
+.env
+.env.local
+.env.*
 
-# Editors
+# IDE
 .vscode/
 .idea/
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
+*.swp
+*.swo
+*.tmp
 
 # OS
 .DS_Store
 Thumbs.db
 
-# MyPy
-.mypy_cache/
-
-# PyTest
-.pytest_cache/
-
-# Gradle
-.gradle/
+# Coverage
+coverage/
+htmlcov/
+.coverage
 
 # Compressed files
 *.zip
