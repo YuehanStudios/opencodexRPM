@@ -38,7 +38,7 @@ import {
   recordCodexUpstreamOutcome,
   type CodexUpstreamOutcome,
 } from "../codex/routing";
-import { fetchWithResetRetry, fetchWithTransientRetry } from "../lib/upstream-retry";
+import { fetchWithTransientRetry } from "../lib/upstream-retry";
 import { isUsageDebugEnabled } from "../usage/debug";
 import { readJsonRequestBody, DecompressedBodyTooLargeError, UnsupportedContentEncodingError } from "./request-decompress";
 import { resolveAdapter, resolveWireProtocolOverride } from "./adapter-resolve";
@@ -953,7 +953,7 @@ export async function handleResponses(
   try {
     upstreamResponse = adapter.fetchResponse
       ? await adapter.fetchResponse(request, { abortSignal: upstream.signal, timeoutMs: connectMs, stream: parsed.stream })
-      : await fetchWithResetRetry(
+      : await fetchWithTransientRetry(
           () => fetchWithHeaderTimeout(request.url, {
             method: request.method, headers: request.headers, body: request.body,
           }, upstream.signal, connectMs, parsed.stream, providerFetch(route.provider)),
