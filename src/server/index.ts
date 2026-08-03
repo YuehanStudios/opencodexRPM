@@ -417,17 +417,22 @@ export function startServer(port?: number) {
           return withCors(formatErrorResponse(403, "origin_rejected", "cross-origin data-plane request blocked"), req, config);
         }
         
-        // Rate limiting check for /v1/responses endpoint
+        // Rate limiting: enqueue requests when capacity is exhausted instead of
+        // returning a 429 error. Requests are processed FIFO as soon as a token
+        // becomes available. queueWhenLimited (default true) in RateLimiter config
+        // controls whether to enqueue or reject; queueTimeoutMs caps the wait.
         if (config.rateLimit?.enabled) {
           const limiter = getGlobalRateLimiter();
-          const result = limiter.checkGlobal();
-          
+          const result = await limiter.waitForGlobal();
+
           if (!result.allowed) {
+            const retryAfter =
+              result.retryAfter ?? Math.ceil(limiter.getConfig().windowMs / 1000);
             const rateLimitResponse = new Response(
               JSON.stringify({
                 error: {
                   type: "rate_limit_error",
-                  message: `Too many requests. Maximum ${limiter.getConfig().maxRequests} requests per ${limiter.getConfig().windowMs / 1000} seconds allowed.`,
+                  message: `Rate limit queue timeout. Maximum ${limiter.getConfig().maxRequests} requests per ${limiter.getConfig().windowMs / 1000} seconds allowed. Try again in ${retryAfter}s.`,
                 },
               }),
               {
@@ -436,7 +441,7 @@ export function startServer(port?: number) {
                   "Content-Type": "application/json",
                   "X-RateLimit-Limit": String(limiter.getConfig().maxRequests),
                   "X-RateLimit-Remaining": String(result.remaining),
-                  "Retry-After": String(result.retryAfter ?? Math.ceil(limiter.getConfig().windowMs / 1000)),
+                  "Retry-After": String(retryAfter),
                   ...corsHeaders(req, config),
                 },
               }

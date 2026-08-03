@@ -481,6 +481,17 @@ export interface OcxConfig {
     evenDistribution?: boolean;
     /** Enable/disable rate limiting. Default: false (disabled) */
     enabled?: boolean;
+    /**
+     * When true, requests that exceed the rate limit are enqueued and run
+     * sequentially when capacity frees up (no 429 error returned to caller
+     * unless the queue timeout is exceeded). Default: true.
+     */
+    queueWhenLimited?: boolean;
+    /**
+     * Maximum time (ms) a queued request waits for capacity before the
+     * server returns a 429. Default: 300000 (5 minutes).
+     */
+    queueTimeoutMs?: number;
   };
 }
 

@@ -12,10 +12,6 @@ export interface RateLimitConfig {
   windowMs: number;
   /** Whether to distribute requests evenly (true) or allow bursts (false) */
   evenDistribution: boolean;
-  /** When true, requests that exceed the rate limit are enqueued and run sequentially when capacity frees up (no 429 error returned). Default: true. */
-  queueWhenLimited?: boolean;
-  /** Maximum time (ms) a queued request waits for capacity before rejecting with 429. Default: 300000 (5 minutes). */
-  queueTimeoutMs?: number;
 }
 
 export interface RateLimitResult {
@@ -36,13 +32,6 @@ class TokenBucket {
   private lastRefill: number;
   private readonly maxTokens: number;
   private readonly refillIntervalMs: number;
-  /** FIFO queue of requests waiting for a token. */
-  private waiters: Array<{
-    resolve: (obtained: boolean) => void;
-    timeout: ReturnType<typeof setTimeout>;
-  }> = [];
-  /** One wake-up is enough: draining schedules the next token if work remains. */
-  private wakeTimer?: ReturnType<typeof setTimeout>;
 
   constructor(maxRequests: number, windowMs: number) {
     this.maxTokens = maxRequests;
@@ -88,67 +77,6 @@ class TokenBucket {
     
     const timeSinceLastRefill = Date.now() - this.lastRefill;
     return Math.ceil(this.refillIntervalMs - timeSinceLastRefill);
-  }
-
-  /**
-   * Block (enqueue) until at least one token is available, then consume it.
-   * Returns true if a token was obtained, false if timeoutMs elapsed.
-   * Waiters are released in FIFO order each time notifyWaiters runs.
-   */
-  public async waitForToken(timeoutMs: number): Promise<boolean> {
-    // Do not let a newer request bypass an already queued request.
-    if (this.waiters.length === 0 && this.consume()) return true;
-
-    return new Promise<boolean>(resolve => {
-      const waiter = {
-        resolve,
-        timeout: undefined as unknown as ReturnType<typeof setTimeout>,
-      };
-      const timer = setTimeout(() => {
-        const index = this.waiters.indexOf(waiter);
-        if (index !== -1) {
-          this.waiters.splice(index, 1);
-          resolve(false);
-          this.scheduleDrain();
-        }
-      }, timeoutMs);
-      waiter.timeout = timer;
-      this.waiters.push(waiter);
-      this.scheduleDrain();
-    });
-  }
-
-  /**
-   * Process queued requests strictly FIFO. Every waiter consumes the token before
-   * it is resolved, so waking a batch can never make the later requests race for
-   * the same token. If capacity is still exhausted, schedule the next refill.
-   */
-  private scheduleDrain(): void {
-    if (this.wakeTimer) {
-      return;
-    }
-
-    this.refill();
-    while (this.tokens >= 1 && this.waiters.length > 0) {
-      const waiter = this.waiters.shift()!;
-      this.tokens -= 1;
-      clearTimeout(waiter.timeout);
-      waiter.resolve(true);
-    }
-
-    if (this.waiters.length === 0) {
-      return;
-    }
-
-    this.wakeTimer = setTimeout(() => {
-      this.wakeTimer = undefined;
-      this.scheduleDrain();
-    }, Math.max(1, this.getTimeUntilNextToken()));
-  }
-
-  /** Notify the queue after state changes while keeping the FIFO drain intact. */
-  public notifyWaiters(): void {
-    this.scheduleDrain();
   }
 }
 
@@ -197,16 +125,6 @@ class SlidingWindowCounter {
   public record(): void {
     this.requests.push(Date.now());
   }
-
-  /** Returns ms until a slot frees up (0 if available). */
-  public getTimeToSlot(): number {
-    this.cleanup();
-    if (this.requests.length < this.maxRequests) return 0;
-    const now = Date.now();
-    const oldest = this.requests[0];
-    if (!oldest) return 0;
-    return Math.max(0, oldest + this.windowMs - now);
-  }
 }
 
 export class RateLimiter {
@@ -252,7 +170,6 @@ export class RateLimiter {
       
       if (limiter instanceof TokenBucket) {
         const allowed = limiter.consume();
-        if (allowed) limiter.notifyWaiters();
         return {
           allowed,
           statusCode: allowed ? 200 : 429,
@@ -298,7 +215,6 @@ export class RateLimiter {
     
     if (this.globalBucket) {
       const allowed = this.globalBucket.consume();
-      if (allowed) this.globalBucket.notifyWaiters();
       return {
         allowed,
         statusCode: allowed ? 200 : 429,
@@ -314,58 +230,6 @@ export class RateLimiter {
       remaining: this.config.maxRequests,
       resetInMs: this.config.windowMs,
     };
-  }
-
-  /**
-   * Queue-aware variant of checkGlobal: when the bucket is exhausted the
-   * caller is enqueued (FIFO) and only resumes when a token frees up or
-   * the configured queue timeout elapses. Returns a result whose allowed
-   * is true once capacity was obtained.
-   *
-   * When queueWhenLimited is false (or no global limiter is configured)
-   * this falls back to checkGlobal() so legacy behavior is preserved.
-   */
-  public async waitForGlobal(): Promise<RateLimitResult> {
-    const timeoutMs = this.config.queueTimeoutMs ?? 300000;
-
-    if (this.config.queueWhenLimited === false) {
-      return this.checkGlobal();
-    }
-
-    if (this.globalBucket) {
-      const obtained = await this.globalBucket.waitForToken(timeoutMs);
-      if (!obtained) {
-        return {
-          allowed: false,
-          statusCode: 429,
-          retryAfter: Math.ceil(this.globalBucket.getTimeUntilNextToken() / 1000),
-          remaining: 0,
-          resetInMs: this.globalBucket.getTimeUntilNextToken(),
-        };
-      }
-      return {
-        allowed: true,
-        statusCode: 200,
-        remaining: this.globalBucket.getRemaining(),
-        resetInMs: this.globalBucket.getTimeUntilNextToken(),
-      };
-    }
-
-    if (this.globalWindow) {
-      const start = Date.now();
-      while (true) {
-        const r = this.globalWindow.check();
-        if (r.allowed) {
-          this.globalWindow.record();
-          return r;
-        }
-        if (Date.now() - start >= timeoutMs) return r;
-        const waitMs = Math.max(0, this.globalWindow.getTimeToSlot());
-        await new Promise(resolve => setTimeout(resolve, Math.min(waitMs || 1000, 500)));
-      }
-    }
-
-    return this.checkGlobal();
   }
 
   /**
@@ -408,12 +272,6 @@ export class RateLimiter {
     }
     if (newConfig.windowMs !== undefined) {
       this.config.windowMs = newConfig.windowMs;
-    }
-    if (newConfig.queueTimeoutMs !== undefined) {
-      this.config.queueTimeoutMs = newConfig.queueTimeoutMs;
-    }
-    if (newConfig.queueWhenLimited !== undefined) {
-      this.config.queueWhenLimited = newConfig.queueWhenLimited;
     }
     if (newConfig.evenDistribution !== undefined) {
       this.config.evenDistribution = newConfig.evenDistribution;
@@ -464,7 +322,6 @@ export function getGlobalRateLimiter(): RateLimiter {
       maxRequests: 20,
       windowMs: 60000,
       evenDistribution: true,
-      queueWhenLimited: true,
     });
   }
   return globalRateLimiter;
@@ -515,3 +372,4 @@ export function createRateLimitedResponse(result: RateLimitResult, message?: str
   
   return new Response(null, { status: 200, headers });
 }
+
