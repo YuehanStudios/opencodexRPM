@@ -493,6 +493,13 @@ export interface OcxConfig {
      */
     queueTimeoutMs?: number;
   };
+  /**
+   * Inter-request latency: minimum delay (ms) enforced between consecutive upstream fetches
+   * for models that forward requests (e.g., ChatGPT passthrough, routed providers).
+   * Useful for throttling outbound call rate independently of RPM. Default: 0 (no delay).
+   * This is applied per-model/provider basis when forwarding requests upstream.
+   */
+  modelRequestLatencyMs?: number;
 }
 
 /**

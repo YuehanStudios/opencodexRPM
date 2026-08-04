@@ -39,6 +39,44 @@ const TRANSIENT_429_BASE_DELAY_MS = 500;
 const TRANSIENT_429_MAX_DELAY_MS = 5 * 60_000;
 const TRANSIENT_429_SLOT_TIME_FALLBACK_MS = 12_000;
 
+/** Global inter-request latency (ms) applied before each upstream fetch when configured. */
+let globalModelRequestLatencyMs = 0;
+let lastFetchTime = 0;
+
+/** Set the global model request latency (ms) for throttling upstream fetches. */
+export function setModelRequestLatencyMs(latencyMs: number): void {
+  globalModelRequestLatencyMs = Math.max(0, latencyMs);
+}
+
+/** Get the current model request latency setting. */
+export function getModelRequestLatencyMs(): number {
+  return globalModelRequestLatencyMs;
+}
+
+/** Apply inter-request delay if configured, logging execution details. */
+async function applyModelRequestLatency(label?: string): Promise<void> {
+  if (globalModelRequestLatencyMs <= 0) return;
+  
+  const now = Date.now();
+  const elapsedSinceLastFetch = now - lastFetchTime;
+  const remainingDelay = Math.max(0, globalModelRequestLatencyMs - elapsedSinceLastFetch);
+  
+  if (remainingDelay > 0) {
+    console.log(
+      `[model-latency] ${label || "upstream"}: waiting ${remainingDelay}ms `
+      + `(configured: ${globalModelRequestLatencyMs}ms, elapsed since last: ${elapsedSinceLastFetch}ms)`,
+    );
+    await sleepWithAbort(remainingDelay);
+  } else {
+    console.log(
+      `[model-latency] ${label || "upstream"}: no wait needed `
+      + `(elapsed: ${elapsedSinceLastFetch}ms >= configured: ${globalModelRequestLatencyMs}ms)`,
+    );
+  }
+  
+  lastFetchTime = Date.now();
+}
+
 /**
  * Upstream statuses treated as transient: gateway errors and Cloudflare 52x.
  * 500 is included per the OpenAI SDK default (auto-retries >=500; Tier-2 proven in
@@ -229,6 +267,9 @@ export async function fetchWithTransientRetry(
   doFetch: () => Promise<Response>,
   opts: TransientRetryOptions = {},
 ): Promise<Response> {
+  // Apply inter-request latency before the first attempt (and between retries via the loop below)
+  await applyModelRequestLatency(opts.label);
+  
   // Compute slowAttemptMs once so both layers measure the upstream's per-attempt
   // shape policy consistently. The seed `slowAttemptStartMs` is captured BEFORE
   // the 429 layer's first fetch thunk — a slow upstream that finally returns
